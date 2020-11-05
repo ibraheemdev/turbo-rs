@@ -1,7 +1,7 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
-pub mod app;
+// pub mod app;
 pub mod extractors;
 pub mod handler;
 pub mod responder;
@@ -9,11 +9,9 @@ pub mod route;
 pub mod router;
 pub mod service;
 
-pub(crate) mod tree;
-
 // re-export common components
-#[doc(hidden)]
-pub use app::App;
+// #[doc(hidden)]
+// pub use app::App;
 #[doc(hidden)]
 pub use extractors::FromRequest;
 #[doc(hidden)]
