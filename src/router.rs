@@ -1,109 +1,181 @@
-//! The router relies on a tree structure which makes heavy use of *common prefixes*,
-//! it is basically a *compact* [*prefix tree*](https://en.wikipedia.org/wiki/Trie)
-//! (or just [*Radix tree*](https://en.wikipedia.org/wiki/Radix_tree)). Nodes with a
-//! common prefix also share a common parent. The radix tree implementation was derived
-//! from [julienschmidt/httprouter](https://github.com/julienschmidt/httprouter)
-//!
-//! Here is a short example what the routing tree for the `GET` request method could look like:
-//!
-//! ```ignore
-//! Priority   Path             value
-//! 9          \                *<1>
-//! 3          ├s               nil
-//! 2          |├earch\         *<2>
-//! 1          |└upport\        *<3>
-//! 2          ├blog\           *<4>
-//! 1          |    └:post      nil
-//! 1          |         └\     *<5>
-//! 2          ├about-us\       *<6>
-//! 1          |        └team\  *<7>
-//! 1          └contact\        *<8>
-//! ```
-
-//! Every `*<num>` represents the memory address of a value.
-//! If you follow a path trough the tree from the root to the leaf, you get the complete
-//! route path, e.g `\blog\:post\`, where `:post` is just a placeholder ([*parameter*](#named-parameters))
-//! for an actual post name. Unlike hash-maps, a tree structure also allows us to use
-//! dynamic parts like the `:post` parameter, since we actually match against the routing
-//! patterns instead of just comparing hashes. This works very well and efficiently.
-
-//! Since URL paths have a hierarchical structure and make use only of a limited set of
-//! characters (byte values), it is very likely that there are a lot of common prefixes.
-//! This allows us to easily reduce the routing into ever smaller problems. Moreover the
-//! router manages a separate tree for every request method. For one thing it is more
-//! space efficient than holding a method -> value map in every single node, it also allows
-//! us to greatly reduce the routing problem before even starting the look-up in the prefix-tree.
-
-//! For even better scalability, the child nodes on each tree level are ordered by priority,
-//! where the priority is just the number of values registered in sub nodes (children, grandchildren, and so on..).
-//! This helps in two ways:
-
-//! 1. Nodes which are part of the most routing paths are evaluated first. This helps to
-//! make as much routes as possible to be reachable as fast as possible.
-//! 2. It is some sort of cost compensation. The longest reachable path (highest cost)
-//! can always be evaluated first. The following scheme visualizes the tree structure.
-//! Nodes are evaluated from top to bottom and from left to right.
-
-//! ```ignore
-//! ├------------
-//! ├---------
-//! ├-----
-//! ├----
-//! ├--
-//! ├--
-//! └-
-//! ```
-//!
-use crate::tree::{Node, RouteLookup};
-use std::cmp::Eq;
+use crate::{Request, Route};
+use http::Response;
 use std::collections::HashMap;
-use std::hash::Hash;
-use std::str;
 
-/// Router is container which can be used to dispatch requests to different
-/// handler functions via configurable routes
-pub struct Router<K: Eq + Hash, V> {
-  pub map: HashMap<K, Node<V>>,
+/// Registers routes to be matched and dispatches a handler.
+///
+/// It implements the http.Handler interface, so it can be registered to serve
+/// requests:
+/// ```
+/// let router = Router::Default();
+/// router.serve().await;
+/// ```
+/// This will send all incoming requests to the router.
+pub struct Router<'a> {
+  /// Configurable Handler to be used when no route matches.
+  not_found_handler: Option<Route<'a>>,
+
+  /// Configurable Handler to be used when the request method does not match the route.
+  method_not_found_handler: Option<Route<'a>>,
+
+  /// Routes to be matched, in order.
+  routes: Vec<Route<'a>>,
+
+  /// Routes by name for URL building.
+  named_routes: HashMap<String, Route<'a>>,
+
+  /// Middlewares to be called after a match is found
+  middlewares: Vec<Route<'a>>,
+
+  /// Configuration shared with `Route`
+  config: RouteConfig,
 }
 
-impl<K: Eq + Hash, V> Default for Router<K, V> {
+impl<'a> Default for Router<'a> {
+  /// Returns the default router instance.
   fn default() -> Self {
     Router {
-      map: HashMap::new(),
+      not_found_handler: None,
+      method_not_found_handler: None,
+      routes: Vec::new(),
+      named_routes: HashMap::new(),
+      middlewares: Vec::new(),
+      config: RouteConfig::default(),
     }
   }
 }
 
-impl<K: Eq + Hash, V> Router<K, V> {
-  pub fn with_capacity(capacity: usize) -> Self {
-    Router {
-      map: HashMap::with_capacity(capacity),
-    }
+#[derive(Default, Clone)]
+/// Common route configuration shared between `Router` and `Route`
+pub struct RouteConfig {
+  /// If true, "/path/foo%2Fbar/to" will match the path "/path/{var}/to"
+  use_encoded_path: bool,
+
+  /// If true, when the path pattern is "/path/", accessing "/path" will
+  /// redirect to the former and vice versa.
+  strict_slash: bool,
+
+  /// If true, when the path pattern is "/path//to", accessing "/path//to"
+  /// will not redirect
+  skip_clean: bool,
+
+  /// Manager for the variables from host and path.
+  regexp: RouteRegexpGroup,
+
+  /// List of matchers.
+  matchers: Vec<Matcher>,
+
+  /// The scheme used when building URLs.
+  build_scheme: String,
+
+  build_vars_func: BuildVarsFunc,
+}
+
+#[derive(Clone)]
+pub struct Matcher {}
+
+#[derive(Default, Clone)]
+pub struct RouteRegexpGroup {}
+
+#[derive(Default, Clone)]
+pub struct BuildVarsFunc {}
+
+pub enum MatchError {
+  /// Returned when the method in the request does not match
+  /// the method defined against the route.
+  MethodMismatch,
+  /// Returned when no route match is found.
+  NotFound,
+}
+
+impl<'a> Router<'a> {
+  /// Attempts to match the given request against the router's registered routes.
+  ///
+  /// If the request matches a route of this router or one of its subrouters the Route,
+  /// Handler, and Vars fields of the the match argument are filled and this function
+  /// returns true.
+  ///
+  /// If the request does not match any of this router's or its subrouters' routes
+  /// then this function returns false. If available, a reason for the match failure
+  /// will be filled in the match argument's MatchErr field. If the match failure type
+  /// (eg: not found) has a registered handler, the handler is assigned to the Handler
+  /// field of the match argument.
+  pub fn match_request(&self, req: Request) -> Result<RouteMatch, MatchError> {
+    for route in &self.routes {}
+    Err(MatchError::NotFound)
   }
 
-  /// Add registers a new request handle with the given key and value in the route map
-  pub fn add(&mut self, key: K, value: V, path: &str) {
-    if !path.starts_with('/') {
-      panic!("path must begin with '/' in path '{}'", path);
-    }
+  /// Dispatches the handler registered in the matched route.
+  ///
+  /// When there is a match, the route variables can be retrieved calling
+  /// `router.vars(request)`.
+  pub async fn serve(&self, req: Request) -> Result<Response<hyper::Body>, ()> {
+    Err(())
+  }
 
+  /// Returns a route registered with the given name.
+  pub fn get(&self, name: &str) -> Option<&Route> {
+    self.named_routes.get(name)
+  }
+
+  /// Defines the trailing slash behavior for new routes. The initial
+  /// value is false.
+  ///
+  /// When true, if the route path is "/path/", accessing "/path" will perform a redirect
+  /// to the former and vice versa. In other words, your application will always
+  /// see the path as specified in the route.
+  ///
+  /// When false, if the route path is "/path", accessing "/path/" will not match
+  /// this route and vice versa.
+  ///
+  /// The re-direct is a HTTP 301 (Moved Permanently). Note that when this is set for
+  /// routes with a non-idempotent method (e.g. POST, PUT), the subsequent re-directed
+  /// request will be made as a GET by most clients. Use middleware or client settings
+  /// to modify this behaviour as needed.
+  ///
+  /// Special case: when a route sets a path prefix using the `path_prefix` method,
+  /// strict slash is ignored for that route because the redirect behavior can't
+  /// be determined from a prefix alone. However, any subrouters created from that
+  /// route inherit the original strict_slash setting.
+  pub fn strict_slash(&mut self, val: bool) -> &Self {
+    self.config.strict_slash = val;
     self
-      .map
-      .entry(key)
-      .or_insert_with(Node::default)
-      .add_route(path, value);
   }
 
-  /// Allows the manual lookup of a path in the route map.
-  /// Returns the value and the path parameter values if the path is found.
-  /// If no match can be found, a TSR (trailing slash redirect) recommendation is
-  /// made if a match exists with an extra (without the) trailing slash for the
-  /// given path.
-  pub fn lookup(&mut self, key: &K, path: &str) -> Result<RouteLookup<V>, bool> {
+  /// Defines the path cleaning behaviour for new routes. The initial
+  /// value is false. Users should be careful about which routes are not cleaned
+  ///
+  /// When true, if the route path is "/path//to", it will remain with the double
+  /// slash. This is helpful if you have a route like: /fetch/http://xkcd.com/534/
+  ///
+  /// When false, the path will be cleaned, so /fetch/http://xkcd.com/534/ will
+  /// become /fetch/http/xkcd.com/534
+  pub fn skip_clean(&mut self, val: bool) -> &Self {
+    self.config.skip_clean = val;
     self
-      .map
-      .get_mut(key)
-      .map(|n| n.get_value(path))
-      .unwrap_or(Err(false))
   }
+
+  // Tells the router to match the encoded original path
+  // to the routes.
+  // For eg. "/path/foo%2Fbar/to" will match the path "/path/{var}/to".
+  //
+  // If not called, the router will match the unencoded path to the routes.
+  // For eg. "/path/foo%2Fbar/to" will match the path "/path/foo/bar/to"
+  pub fn use_encoded_path(&mut self) -> &Self {
+    self.config.use_encoded_path = true;
+    self
+  }
+
+  // Registers an empty route.
+  pub fn new_route(&'a mut self) -> &Route {
+    let route = Route::default().config(self.config.clone());
+    self.routes.push(route);
+    &self.routes.last().unwrap()
+  }
+}
+
+/// Stores information about a matched route.
+pub struct RouteMatch<'a> {
+  route: &'a Route<'a>,
+  vars: HashMap<String, String>,
 }
