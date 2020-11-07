@@ -1,6 +1,6 @@
 # Turbofish
 
-**Turbofish is a Rust web framework focused on speed, stability, and developer ergonomics**
+**An experimental web framework aimed to be a Django/Rails replacement for Rust**
 
 [![crates.io](http://img.shields.io/crates/v/turbofish?style=for-the-badge)](https://crates.io/crates/turbofish)
 [![Version](https://img.shields.io/static/v1?style=for-the-badge&label=RUSTC&message=1.47&color=b5651d)](https://blog.rust-lang.org/2020/10/08/Rust-1.47.html)
