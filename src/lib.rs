@@ -5,8 +5,8 @@
 pub mod extractors;
 pub mod handler;
 pub mod responder;
-pub mod route;
-pub mod router;
+pub mod endpoint;
+pub mod tree;
 pub mod service;
 
 // re-export common components
@@ -21,7 +21,7 @@ pub use hyper::{Body, Error, Response, StatusCode};
 #[doc(hidden)]
 pub use responder::ToResponse;
 #[doc(hidden)]
-pub use route::Route;
+pub use endpoint::Endpoint;
 #[doc(hidden)]
 pub use service::Service;
 
