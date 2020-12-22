@@ -1,6 +1,6 @@
 use crate::config::Config;
 use crate::service::MakeTurbofishService;
-use std::net::ToSocketAddrs;
+use std::net::{SocketAddr, ToSocketAddrs};
 use std::time::Duration;
 
 pub struct Turbofish {
@@ -18,13 +18,9 @@ impl Turbofish {
     Self { config }
   }
 
-  // TODO: error handling
   pub async fn swim(self) -> Result<(), hyper::Error> {
-    let addr = format!("{}:{}", self.config.address, self.config.port)
-      .to_socket_addrs()
-      .map(|mut addrs| addrs.next().expect("invalid socket address"));
-
-    hyper::server::Server::bind(&addr.expect("invalid socket address"))
+    let addr = format!("{}:{}", self.config.address, self.config.port).to_socket_addrs().next();
+    hyper::server::Server::bind(addr)
       .http1_keepalive(self.config.keep_alive.is_some())
       .http2_keep_alive_interval(self.config.keep_alive.map(Duration::from_secs))
       .serve(MakeTurbofishService::new(self))
@@ -37,7 +33,7 @@ mod tests {
   use super::*;
   async fn api() -> Result<(), hyper::Error> {
     Turbofish::custom(Config::builder().keep_alive(100).port(3000))
-      .swim()
+      .swim(&([127, 0, 0, 1], 3000).into())
       .await
   }
 }
