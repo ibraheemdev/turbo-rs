@@ -1,3 +1,4 @@
+use crate::config::Config;
 use hyper::service::Service;
 use hyper::{Body, Request, Response};
 use std::future::Future;
@@ -5,25 +6,23 @@ use std::net::SocketAddr;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use crate::config::Config;
 
-pub struct App {
+pub struct Turbofish {
   config: Config,
 }
 
-impl App {
+impl Turbofish {
   pub fn new() -> Self {
     Self {
       config: Config::default(),
     }
   }
 
-  pub fn config(mut self, config: Config) -> Self {
-    self.config = config;
-    self
+  pub fn custom(config: Config) -> Self {
+    Self { config }
   }
 
-  pub async fn run(self, addr: &SocketAddr) -> Result<(), hyper::Error> {
+  pub async fn swim(self, addr: &SocketAddr) -> Result<(), hyper::Error> {
     let mut server = hyper::server::Server::bind(addr)
       .http1_keepalive(self.config.http1_keepalive)
       .http1_half_close(self.config.http1_half_close)
@@ -48,15 +47,15 @@ impl App {
       server = server.http1_writev(writev);
     }
 
-    let make_svc = MakeAppService(AppService(Arc::new(self)));
+    let make_svc = MakeTurbofishService(TurbofishService(Arc::new(self)));
     server.serve(make_svc).await
   }
 }
 
-struct MakeAppService(AppService);
+struct MakeTurbofishService(TurbofishService);
 
-impl<T> Service<T> for MakeAppService {
-  type Response = AppService;
+impl<T> Service<T> for MakeTurbofishService {
+  type Response = TurbofishService;
   type Error = hyper::Error;
   type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
@@ -72,9 +71,9 @@ impl<T> Service<T> for MakeAppService {
 }
 
 #[derive(Clone)]
-struct AppService(Arc<App>);
+struct TurbofishService(Arc<Turbofish>);
 
-impl Service<Request<Body>> for AppService {
+impl Service<Request<Body>> for TurbofishService {
   type Response = Response<Body>;
   type Error = hyper::Error;
   type Future = Pin<Box<dyn Future<Output = hyper::Result<Response<Body>>> + Send + Sync>>;
@@ -88,4 +87,17 @@ impl Service<Request<Body>> for AppService {
   }
 }
 
-
+#[cfg(test)]
+mod tests {
+  use super::*;
+  async fn api() -> Result<(), hyper::Error> {
+    Turbofish::custom(
+      Config::builder()
+        .http1_writev(true)
+        .http1_max_buf_size(9012)
+        .tcp_sleep_on_accept_errors(false),
+    )
+    .swim(&([127, 0, 0, 1], 3000).into())
+    .await
+  }
+}

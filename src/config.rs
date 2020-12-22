@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+#[derive(Clone)]
 pub struct Config {
   pub(crate) http1_keepalive: bool,
   pub(crate) http1_half_close: bool,
@@ -43,6 +44,10 @@ impl Default for Config {
 }
 
 impl Config {
+  pub fn builder() -> Self {
+    Self::default()
+  }
+
   /// Sets whether to use keep-alive for HTTP/1 connections.
   ///
   /// Default is true.
