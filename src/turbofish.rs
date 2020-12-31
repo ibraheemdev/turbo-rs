@@ -14,8 +14,9 @@ impl Turbofish {
     }
   }
 
-  pub fn custom(config: Config) -> Self {
-    Self { config }
+  pub fn config(mut self, config: Config) -> Self {
+    self.config = config;
+    self
   }
 
   // TODO: error handling
@@ -36,7 +37,8 @@ impl Turbofish {
 mod tests {
   use super::*;
   async fn api() -> Result<(), hyper::Error> {
-    Turbofish::custom(Config::builder().keep_alive(100).port(3000))
+    Turbofish::new()
+      .config(Config::builder().keep_alive(100).port(3000))
       .swim()
       .await
   }
