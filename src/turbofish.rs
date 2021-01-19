@@ -1,16 +1,19 @@
 use crate::config::Config;
+use crate::router::Router;
 use crate::service::MakeTurbofishService;
 use std::net::ToSocketAddrs;
 use std::time::Duration;
 
 pub struct Turbofish {
   config: Config,
+  router: Router
 }
 
 impl Turbofish {
   pub fn new() -> Self {
     Self {
       config: Config::default(),
+      router: Router::default(),
     }
   }
 

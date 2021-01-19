@@ -11,3 +11,5 @@ readme = "README.md"
 [dependencies]
 hyper = "0.13.9"
 regex = "1.4.2"
+either = "1.6.1"
+percent-encoding = "2.1.0"
