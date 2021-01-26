@@ -1,12 +1,12 @@
 use crate::config::Config;
 use crate::router::Router;
-use crate::service::MakeTurbofishService;
+use crate::server::MakeTurbofishService;
 use std::net::ToSocketAddrs;
 use std::time::Duration;
 
 pub struct Turbofish {
   config: Config,
-  router: Router
+  pub(crate) router: Router
 }
 
 impl Turbofish {
@@ -22,7 +22,6 @@ impl Turbofish {
     self
   }
 
-  // TODO: error handling
   pub async fn swim(self) -> Result<(), hyper::Error> {
     let addr = format!("{}:{}", self.config.address, self.config.port)
       .to_socket_addrs()
@@ -39,10 +38,11 @@ impl Turbofish {
 #[cfg(test)]
 mod tests {
   use super::*;
-  async fn api() -> Result<(), hyper::Error> {
+
+  #[test]
+  fn api() {
     Turbofish::new()
       .config(Config::builder().keep_alive(100).port(3000))
-      .swim()
-      .await
+      .swim();
   }
 }

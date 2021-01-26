@@ -3,13 +3,13 @@ use std::mem;
 use std::ops::Index;
 use std::str;
 
-struct Match<'a, V> {
+pub struct Match<'a, V> {
   pub value: &'a V,
   pub params: Params,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct Param {
+pub struct Param {
   pub key: String,
   pub value: String,
 }
@@ -24,7 +24,7 @@ impl Param {
 }
 
 #[derive(Debug, PartialEq)]
-struct Params(pub Vec<Param>);
+pub struct Params(pub Vec<Param>);
 
 impl Default for Params {
   fn default() -> Self {
@@ -77,7 +77,7 @@ enum NodeType {
   Static,
 }
 
-struct Node<V> {
+pub struct Node<V> {
   path: Vec<u8>,
   wild_child: bool,
   node_type: NodeType,
@@ -131,7 +131,7 @@ impl<V> Node<V> {
   }
 
   /// Insert a `Node` with the given value to the path.
-  fn insert(&mut self, path: &str, value: V) {
+  pub fn insert(&mut self, path: &str, value: V) {
     let full_path = <&str>::clone(&path);
     self.priority += 1;
 
@@ -376,7 +376,7 @@ impl<V> Node<V> {
     self.children[0].children = vec![Box::new(child)];
   }
 
-  fn match_path(&self, path: &str) -> Result<Match<V>, bool> {
+  pub fn match_path(&self, path: &str) -> Result<Match<V>, bool> {
     self.match_helper(path.as_ref(), Params::default())
   }
 
@@ -505,7 +505,7 @@ impl<V> Node<V> {
     }
   }
 
-  fn find_case_insensitive_path(&self, path: &str, fix_trailing_slash: bool) -> Option<String> {
+  pub fn find_case_insensitive_path(&self, path: &str, fix_trailing_slash: bool) -> Option<String> {
     let mut insensitive_path = Vec::with_capacity(path.len() + 1);
     let found = self.find_case_insensitive_path_helper(
       path.as_bytes(),
