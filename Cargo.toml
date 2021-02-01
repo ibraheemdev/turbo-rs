@@ -8,6 +8,12 @@ description = "A fast lightweight rust framework built on top of hyper (wip)."
 repository = "https://github.com/ibraheemdev/turbofish/"
 readme = "README.md"
 
+[workspace]
+members = [
+    ".",
+    "turbo-orm"
+]
+
 [dependencies]
 hyper = { version = "0.14", features = ["http1", "http2", "runtime", "server"] }
 async-trait = "0.1"
