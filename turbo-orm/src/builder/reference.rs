@@ -44,7 +44,7 @@ impl Builder for ReferenceBuilder {
     base.ident(self.table);
     let columns = self.columns;
     base.nested(|b| {
-      b.ident_comma(&columns);
+      b.ident_comma(columns);
     });
     (base.buf, base.args)
   }

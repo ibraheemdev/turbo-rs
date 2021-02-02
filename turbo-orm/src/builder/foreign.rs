@@ -70,7 +70,7 @@ impl Builder for ForeignKeyBuilder {
     base.push_str("FOREIGN KEY");
     let columns = self.columns;
     base.nested(|b| {
-      b.ident_comma(&columns);
+      b.ident_comma(columns);
     });
     base.pad().join(self.reference);
     for action in self.actions {

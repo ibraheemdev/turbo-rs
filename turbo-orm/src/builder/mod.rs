@@ -6,8 +6,9 @@ mod table;
 
 pub use column::ColumnBuilder;
 pub use foreign::ForeignKeyBuilder;
-pub use ops::Op;
 pub use reference::ReferenceBuilder;
+pub use table::TableBuilder;
+pub use ops::Op;
 
 /// Types that can be converted into SQL.
 pub trait Builder {
@@ -47,7 +48,7 @@ pub trait BuilderExt {
     B: Builder;
 
   /// Accepts a callback, and wraps its result with parentheses.
-  fn nested(&mut self, f: impl Fn(&mut BaseBuilder)) -> &mut Self;
+  fn nested(&mut self, f: impl FnOnce(&mut BaseBuilder)) -> &mut Self;
 
   /// Push a raw string to the builder.
   fn push_str(&mut self, s: impl AsRef<str>) -> &mut Self;
@@ -199,7 +200,7 @@ impl BuilderExt for BaseBuilder {
   }
 
   #[inline]
-  fn nested(&mut self, f: impl Fn(&mut Self)) -> &mut Self {
+  fn nested(&mut self, f: impl FnOnce(&mut Self)) -> &mut Self {
     self.push('(');
     f(self);
     self.push(')')
@@ -318,7 +319,7 @@ where
   }
 
   #[inline]
-  fn nested(&mut self, f: impl Fn(&mut BaseBuilder)) -> &mut Self {
+  fn nested(&mut self, f: impl FnOnce(&mut BaseBuilder)) -> &mut Self {
     self.parent_mut().nested(f);
     self
   }
