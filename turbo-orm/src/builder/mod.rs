@@ -2,6 +2,7 @@ mod column;
 mod foreign;
 mod ops;
 mod reference;
+mod table;
 
 pub use column::ColumnBuilder;
 pub use foreign::ForeignKeyBuilder;
@@ -38,6 +39,12 @@ pub trait BuilderExt {
 
   /// Join this builder with an existing builder.
   fn join(&mut self, builder: impl Builder) -> &mut Self;
+
+  /// Join this builder with a list of comma seperated builders.
+  fn join_many<I, B>(&mut self, builders: I) -> &mut Self
+  where
+    I: IntoIterator<Item = B>,
+    B: Builder;
 
   /// Accepts a callback, and wraps its result with parentheses.
   fn nested(&mut self, f: impl Fn(&mut BaseBuilder)) -> &mut Self;
@@ -95,6 +102,25 @@ pub enum Dialect {
 impl Default for Dialect {
   fn default() -> Self {
     Dialect::Postgres
+  }
+}
+
+impl BaseBuilder {
+  fn join_helper<I, B>(&mut self, builders: I, seperator: impl AsRef<str>) -> &mut Self
+  where
+    I: IntoIterator<Item = B>,
+    B: Builder,
+  {
+    for (i, b) in builders.into_iter().enumerate() {
+      if i > 0 {
+        self.push_str(seperator.as_ref());
+      }
+      let (query, mut args) = b.build();
+      self.push_str(query);
+      self.total = args.len();
+      self.args.append(&mut args);
+    }
+    self
   }
 }
 
@@ -158,11 +184,18 @@ impl BuilderExt for BaseBuilder {
     self
   }
 
+  #[inline]
   fn join(&mut self, builder: impl Builder) -> &mut Self {
-    let (query, mut args) = builder.build();
-    self.args.append(&mut args);
-    self.total = self.args.len();
-    self.push_str(&query)
+    self.join_helper(std::iter::once(builder), "")
+  }
+
+  #[inline]
+  fn join_many<I, B>(&mut self, builders: I) -> &mut Self
+  where
+    I: IntoIterator<Item = B>,
+    B: Builder,
+  {
+    self.join_helper(builders, ", ")
   }
 
   #[inline]
@@ -271,6 +304,16 @@ where
   #[inline]
   fn join(&mut self, builder: impl Builder) -> &mut Self {
     self.parent_mut().join(builder);
+    self
+  }
+
+  #[inline]
+  fn join_many<I, B>(&mut self, builders: I) -> &mut Self
+  where
+    I: IntoIterator<Item = B>,
+    B: Builder,
+  {
+    self.parent_mut().join_many(builders);
     self
   }
 

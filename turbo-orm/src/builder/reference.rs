@@ -17,6 +17,7 @@ impl ChildBuilder for ReferenceBuilder {
     &mut self.base
   }
 }
+
 impl ReferenceBuilder {
   /// Create a reference builder for the reference_option clause.
   pub fn new() -> Self {
