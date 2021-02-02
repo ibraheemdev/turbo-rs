@@ -6,9 +6,9 @@ mod table;
 
 pub use column::ColumnBuilder;
 pub use foreign::ForeignKeyBuilder;
+pub use ops::Op;
 pub use reference::ReferenceBuilder;
 pub use table::TableBuilder;
-pub use ops::Op;
 
 /// Types that can be converted into SQL.
 pub trait Builder {
@@ -131,7 +131,7 @@ impl BuilderExt for BaseBuilder {
     let ident = ident.into();
     match self.dialect {
       Dialect::Postgres => {
-        if ident.contains("`") {
+        if ident.contains('`') {
           return ident.replace("`", "\"");
         }
         ident
@@ -142,7 +142,7 @@ impl BuilderExt for BaseBuilder {
 
   fn ident(&mut self, s: impl AsRef<str>) -> &mut Self {
     let s = s.as_ref();
-    if s.len() == 0 {
+    if s.is_empty() {
     } else if s != "*" && !self.is_ident(s) && !is_func(s) & !is_mod(s) {
       self.push_str(s);
     } else if is_func(s) || is_mod(s) {
@@ -231,8 +231,8 @@ impl BuilderExt for BaseBuilder {
   #[inline]
   fn is_ident(&self, s: impl AsRef<str>) -> bool {
     match self.dialect {
-      Dialect::Postgres => s.as_ref().contains("\""),
-      _ => s.as_ref().contains("`"),
+      Dialect::Postgres => s.as_ref().contains('"'),
+      _ => s.as_ref().contains('`'),
     }
   }
 
@@ -407,17 +407,12 @@ impl<T: ToString> Arg for T {
 
 #[inline]
 fn is_func(s: &str) -> bool {
-  s.contains("(") && s.contains(")")
+  s.contains('(') && s.contains(')')
 }
-
-const MODS: [&str; 3] = ["DISTINCT", "ALL", "WITH ROLLUP"];
 
 #[inline]
 fn is_mod(s: &str) -> bool {
-  for i in 0..2 {
-    if s.starts_with(MODS[i]) {
-      return true;
-    }
-  }
-  false
+  ["DISTINCT", "ALL", "WITH ROLLUP"]
+    .iter()
+    .any(|m| s.starts_with(m))
 }

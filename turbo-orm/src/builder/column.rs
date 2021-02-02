@@ -61,7 +61,7 @@ impl ColumnBuilder {
   /// Sets an extra attribute for the column, like `UNIQUE` or `AUTO_INCREMENT`.
   pub fn attr(&mut self, attr: &str) -> &mut Self {
     if !self.attr.is_empty() && !attr.is_empty() {
-      self.attr.push_str(" ");
+      self.attr.push(' ');
     }
     self.attr.push_str(attr);
     self

@@ -115,24 +115,24 @@ impl Builder for TableBuilder {
     let constraints = self.constraints;
     base.nested(|b| {
       b.join_many(columns);
-      if primaries.len() > 0 {
+      if !primaries.is_empty() {
         b.comma().push_str("PRIMARY KEY");
         b.nested(|b| {
           b.ident_comma(primaries);
         });
       }
-      if constraints.len() > 0 {
+      if !constraints.is_empty() {
         b.comma().join_many(constraints);
       }
     });
     if !self.charset.is_empty() {
-        base.push_str(" CHARACTER SET ").push_str(self.charset);
+      base.push_str(" CHARACTER SET ").push_str(self.charset);
     }
     if !self.collation.is_empty() {
-        base.push_str(" COLLATE ").push_str(self.collation);
+      base.push_str(" COLLATE ").push_str(self.collation);
     }
     if !self.options.is_empty() {
-        base.push_str(" ").push_str(self.options);
+      base.push_str(" ").push_str(self.options);
     }
     (base.buf, base.args)
   }
