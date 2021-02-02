@@ -1,10 +1,12 @@
 mod column;
 mod foreign;
 mod ops;
+mod reference;
 
 pub use column::ColumnBuilder;
 pub use foreign::ForeignKeyBuilder;
 pub use ops::Op;
+pub use reference::ReferenceBuilder;
 
 /// Types that can be converted into SQL.
 pub trait Builder {
@@ -17,13 +19,16 @@ pub trait Builder {
 pub trait BuilderExt {
   /// Quotes the given identifier with the characters based
   /// on the configured dialect. It defaults to "`".
-  fn quote(&self, ident: String) -> String;
+  fn quote(&self, ident: impl Into<String>) -> String;
 
   /// Appends the given string as an identifier.
-  fn ident(self, s: &str) -> Self;
+  fn ident(self, s: impl AsRef<str>) -> Self;
 
   /// Calls [`ident`](self::BaseBuilder::ident) on all arguments and adds a comma between them.
-  fn ident_comma(self, s: &[&str]) -> Self;
+  fn ident_comma<I, S>(self, s: I) -> Self
+  where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>;
 
   /// Push an operator to the builder.
   fn op(self, op: Op) -> Self;
@@ -32,13 +37,13 @@ pub trait BuilderExt {
   fn arg(self, arg: impl Arg) -> Self;
 
   /// Join this builder with an existing builder.
-  fn join<B: Builder>(self, builder: B) -> Self;
+  fn join(self, builder: impl Builder) -> Self;
 
   /// Accepts a callback, and wraps its result with parentheses.
-  fn nested<F: Fn(BaseBuilder) -> BaseBuilder>(self, f: F) -> Self;
+  fn nested(self, f: impl FnMut(BaseBuilder)) -> Self;
 
   /// Push a raw string to the builder.
-  fn push_str(self, s: &str) -> Self;
+  fn push_str(self, s: impl AsRef<str>) -> Self;
 
   /// Push a raw char to the builder.
   fn push(self, c: char) -> Self;
@@ -50,7 +55,7 @@ pub trait BuilderExt {
   fn pad(self) -> Self;
 
   /// Whether the given string is a dialect identifier.
-  fn is_ident(&self, s: &str) -> bool;
+  fn is_ident(&self, s: impl AsRef<str>) -> bool;
 
   /// Returns the dialect of the builder.
   fn dialect(&self) -> &Dialect;
@@ -95,7 +100,8 @@ impl Default for Dialect {
 
 impl BuilderExt for BaseBuilder {
   #[inline]
-  fn quote(&self, ident: String) -> String {
+  fn quote(&self, ident: impl Into<String>) -> String {
+    let ident = ident.into();
     match self.dialect {
       Dialect::Postgres => {
         if ident.contains("`") {
@@ -107,7 +113,8 @@ impl BuilderExt for BaseBuilder {
     }
   }
 
-  fn ident(mut self, s: &str) -> Self {
+  fn ident(mut self, s: impl AsRef<str>) -> Self {
+    let s = s.as_ref();
     if s.len() == 0 {
     } else if s != "*" && !self.is_ident(s) && !is_func(s) & !is_mod(s) {
       self = self.push_str(s);
@@ -123,12 +130,16 @@ impl BuilderExt for BaseBuilder {
   }
 
   #[inline]
-  fn ident_comma(mut self, s: &[&str]) -> Self {
-    for i in 0..s.len() {
+  fn ident_comma<I, S>(self, s: I) -> Self
+  where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+  {
+    for (i, s) in s.into_iter().enumerate() {
       if i > 0 {
         self = self.comma();
       }
-      self = self.ident(s[i]);
+      self = self.ident(s);
     }
     self
   }
@@ -146,29 +157,23 @@ impl BuilderExt for BaseBuilder {
     arg.append(self)
   }
 
-  fn join<B: Builder>(mut self, builder: B) -> Self {
+  fn join(mut self, builder: impl Builder) -> Self {
     let (query, mut args) = builder.build();
     self.args.append(&mut args);
     self.total = self.args.len();
     self.push_str(&query)
   }
 
-  fn nested<F: Fn(Self) -> Self>(mut self, f: F) -> Self {
-    let mut nb = Self {
-      dialect: self.dialect.clone(),
-      total: self.total,
-      ..Self::default()
-    };
-    nb = nb.push('(');
-    nb = f(nb);
-    self.args.append(&mut nb.args);
-    self.total = nb.total;
-    self.push_str(&nb.buf).push(')')
+  #[inline]
+  fn nested(mut self, f: impl FnMut(Self)) -> Self {
+    self = self.push('(');
+    f(self);
+    self.push(')')
   }
 
   #[inline]
-  fn push_str(mut self, s: &str) -> Self {
-    self.buf.push_str(s);
+  fn push_str(mut self, s: impl AsRef<str>) -> Self {
+    self.buf.push_str(s.as_ref());
     self
   }
 
@@ -189,10 +194,10 @@ impl BuilderExt for BaseBuilder {
   }
 
   #[inline]
-  fn is_ident(&self, s: &str) -> bool {
+  fn is_ident(&self, s: impl AsRef<str>) -> bool {
     match self.dialect {
-      Dialect::Postgres => s.contains("\""),
-      _ => s.contains("`"),
+      Dialect::Postgres => s.as_ref().contains("\""),
+      _ => s.as_ref().contains("`"),
     }
   }
 
@@ -227,77 +232,97 @@ impl<T> BuilderExt for T
 where
   T: ChildBuilder,
 {
-  fn quote(&self, ident: String) -> String {
+  #[inline]
+  fn quote(&self, ident: impl Into<String>) -> String {
     self.parent().quote(ident)
   }
 
-  fn ident(self, s: &str) -> Self {
+  #[inline]
+  fn ident(self, s: impl AsRef<str>) -> Self {
     self.parent().ident(s);
     self
   }
 
-  fn ident_comma(self, s: &[&str]) -> Self {
+  #[inline]
+  fn ident_comma<I, S>(self, s: I) -> Self
+  where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+  {
     self.parent().ident_comma(s);
     self
   }
 
+  #[inline]
   fn op(self, op: Op) -> Self {
     self.parent().op(op);
     self
   }
 
+  #[inline]
   fn arg(self, arg: impl Arg) -> Self {
     self.parent().arg(arg);
     self
   }
 
-  fn join<B: Builder>(self, builder: B) -> Self {
+  #[inline]
+  fn join(self, builder: impl Builder) -> Self {
     self.parent().join(builder);
     self
   }
 
-  fn nested<F: Fn(BaseBuilder) -> BaseBuilder>(self, f: F) -> Self {
+  #[inline]
+  fn nested(self, f: impl FnMut(BaseBuilder)) -> Self {
     self.parent().nested(f);
     self
   }
 
-  fn push_str(self, s: &str) -> Self {
+  #[inline]
+  fn push_str(self, s: impl AsRef<str>) -> Self {
     self.parent().push_str(s);
     self
   }
 
+  #[inline]
   fn push(self, c: char) -> Self {
     self.parent().push(c);
     self
   }
 
+  #[inline]
   fn comma(self) -> Self {
     self.parent().comma();
     self
   }
 
+  #[inline]
   fn pad(self) -> Self {
     self.parent().pad();
     self
   }
 
-  fn is_ident(&self, s: &str) -> bool {
+  #[inline]
+  fn is_ident(&self, s: impl AsRef<str>) -> bool {
     self.parent().is_ident(s)
   }
 
+  #[inline]
   fn dialect(&self) -> &Dialect {
     self.parent().dialect()
   }
 
+  #[inline]
   fn set_dialect(&mut self, dialect: Dialect) -> &Self {
     self.parent().set_dialect(dialect);
     self
   }
 
+  #[inline]
   fn total(&self) -> usize {
     self.parent().total()
   }
 
+  #[inline]
   fn set_total(&mut self, total: usize) -> &Self {
     self.parent().set_total(total);
     self
