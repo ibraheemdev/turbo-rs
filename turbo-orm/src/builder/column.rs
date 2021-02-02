@@ -2,7 +2,7 @@ use super::foreign::ForeignKeyBuilder;
 use super::{BaseBuilder, Builder, BuilderExt, ChildBuilder, Dialect};
 
 /// The builder for column definitions in table creation
-pub struct ColumnBuilder<F: Fn(&mut BaseBuilder)> {
+pub struct ColumnBuilder {
   base: BaseBuilder,
   // column type
   typ: String,
@@ -15,10 +15,10 @@ pub struct ColumnBuilder<F: Fn(&mut BaseBuilder)> {
   // foreign-key constraint
   foreign: Option<ForeignKeyBuilder>,
   // column checks
-  check: Option<F>,
+  check: Option<Box<dyn Fn(&mut BaseBuilder)>>,
 }
 
-impl<F: Fn(&mut BaseBuilder)> ChildBuilder for ColumnBuilder<F> {
+impl ChildBuilder for ColumnBuilder {
   fn parent(&self) -> &BaseBuilder {
     &self.base
   }
@@ -28,7 +28,7 @@ impl<F: Fn(&mut BaseBuilder)> ChildBuilder for ColumnBuilder<F> {
   }
 }
 
-impl<F: Fn(&mut BaseBuilder)> Default for ColumnBuilder<F> {
+impl Default for ColumnBuilder {
   fn default() -> Self {
     Self {
       base: BaseBuilder::default(),
@@ -42,7 +42,7 @@ impl<F: Fn(&mut BaseBuilder)> Default for ColumnBuilder<F> {
   }
 }
 
-impl<F: Fn(&mut BaseBuilder)> ColumnBuilder<F> {
+impl ColumnBuilder {
   /// Returns a new `ColumnBuilder` with the given name.
   pub fn new(name: impl Into<String>) -> Self {
     Self {
@@ -74,25 +74,25 @@ impl<F: Fn(&mut BaseBuilder)> ColumnBuilder<F> {
   }
 
   /// Adds a CHECK clause to the ADD COLUMN statement.
-  pub fn check<FF: Fn(&mut BaseBuilder)>(self, check: FF) -> ColumnBuilder<FF> {
-    ColumnBuilder {
-      typ: self.typ,
-      name: self.name,
-      base: self.base,
-      modify: self.modify,
-      foreign: self.foreign,
-      attr: self.attr,
-      check: Some(check),
-    }
+  pub fn check<O, C>(&mut self, check: O) -> &mut Self
+  where
+    O: Into<Option<C>>,
+    C: Fn(&mut BaseBuilder) + 'static,
+  {
+    self.check = match check.into() {
+      Some(c) => Some(Box::new(c)),
+      None => None,
+    };
+    self
   }
 }
 
-impl<F: Fn(&mut BaseBuilder)> Builder for ColumnBuilder<F> {
+impl Builder for ColumnBuilder {
   fn build(self) -> (String, Vec<String>) {
     let mut base = self.base;
     base.ident(self.name);
     if !self.typ.is_empty() {
-      if base.dialect == Dialect::Postgres {
+      if base.dialect == Dialect::Postgres && self.modify {
         base.push_str(" TYPE");
       }
       base.pad().push_str(self.typ);
