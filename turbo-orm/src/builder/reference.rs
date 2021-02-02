@@ -9,7 +9,11 @@ pub struct ReferenceBuilder {
 }
 
 impl ChildBuilder for ReferenceBuilder {
-  fn parent(&mut self) -> &mut BaseBuilder {
+  fn parent(&self) -> &BaseBuilder {
+    &self.base
+  }
+
+  fn parent_mut(&mut self) -> &mut BaseBuilder {
     &mut self.base
   }
 }
@@ -34,11 +38,13 @@ impl ReferenceBuilder {
 
 impl Builder for ReferenceBuilder {
   fn build(self) -> (String, Vec<String>) {
-    self.push_str("REFERENCES ");
-    self.ident(self.table);
-    self.nested(|b| {
-      b.ident_comma(self.columns);
+    let mut base = self.base;
+    base.push_str("REFERENCES ");
+    base.ident(self.table);
+    let columns = self.columns;
+    base.nested(|b| {
+      b.ident_comma(&columns);
     });
-    (self.base.buf, self.base.args)
+    (base.buf, base.args)
   }
 }

@@ -22,37 +22,37 @@ pub trait BuilderExt {
   fn quote(&self, ident: impl Into<String>) -> String;
 
   /// Appends the given string as an identifier.
-  fn ident(self, s: impl AsRef<str>) -> Self;
+  fn ident(&mut self, s: impl AsRef<str>) -> &mut Self;
 
   /// Calls [`ident`](self::BaseBuilder::ident) on all arguments and adds a comma between them.
-  fn ident_comma<I, S>(self, s: I) -> Self
+  fn ident_comma<I, S>(&mut self, s: I) -> &mut Self
   where
     I: IntoIterator<Item = S>,
     S: AsRef<str>;
 
   /// Push an operator to the builder.
-  fn op(self, op: Op) -> Self;
+  fn op(&mut self, op: Op) -> &mut Self;
 
   /// Append an input argument to the builder.
-  fn arg(self, arg: impl Arg) -> Self;
+  fn arg(&mut self, arg: impl Arg) -> &mut Self;
 
   /// Join this builder with an existing builder.
-  fn join(self, builder: impl Builder) -> Self;
+  fn join(&mut self, builder: impl Builder) -> &mut Self;
 
   /// Accepts a callback, and wraps its result with parentheses.
-  fn nested(self, f: impl FnMut(BaseBuilder)) -> Self;
+  fn nested(&mut self, f: impl Fn(&mut BaseBuilder)) -> &mut Self;
 
   /// Push a raw string to the builder.
-  fn push_str(self, s: impl AsRef<str>) -> Self;
+  fn push_str(&mut self, s: impl AsRef<str>) -> &mut Self;
 
   /// Push a raw char to the builder.
-  fn push(self, c: char) -> Self;
+  fn push(&mut self, c: char) -> &mut Self;
 
   /// Add a comma to the query.
-  fn comma(self) -> Self;
+  fn comma(&mut self) -> &mut Self;
 
   /// Add a space to the query.
-  fn pad(self) -> Self;
+  fn pad(&mut self) -> &mut Self;
 
   /// Whether the given string is a dialect identifier.
   fn is_ident(&self, s: impl AsRef<str>) -> bool;
@@ -61,14 +61,14 @@ pub trait BuilderExt {
   fn dialect(&self) -> &Dialect;
 
   /// Sets the builder dialect. It's used for garnering dialect specific queries.
-  fn set_dialect(&mut self, dialect: Dialect) -> &Self;
+  fn set_dialect(&mut self, dialect: Dialect) -> &mut Self;
 
   /// Returns the total number of arguments so far.
   fn total(&self) -> usize;
 
   /// Sets the value of the total arguments.
   /// Used to pass this information between sub builders/expressions.
-  fn set_total(&mut self, total: usize) -> &Self;
+  fn set_total(&mut self, total: usize) -> &mut Self;
 }
 
 /// The base type used by more specific query builders such as `DeleteBuilder` and `ColumnBuilder`. You generally will not have to interact with this type directly.
@@ -85,7 +85,7 @@ pub struct BaseBuilder {
 }
 
 /// The supported SQL dialects.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum Dialect {
   MySQL,
   SQLite,
@@ -113,39 +113,39 @@ impl BuilderExt for BaseBuilder {
     }
   }
 
-  fn ident(mut self, s: impl AsRef<str>) -> Self {
+  fn ident(&mut self, s: impl AsRef<str>) -> &mut Self {
     let s = s.as_ref();
     if s.len() == 0 {
     } else if s != "*" && !self.is_ident(s) && !is_func(s) & !is_mod(s) {
-      self = self.push_str(s);
+      self.push_str(s);
     } else if is_func(s) || is_mod(s) {
       // Modifiers and aggregation functions that
       // were called without dialect information.
-      self = self.push_str(&s.replace("`", "\""));
+      self.push_str(&s.replace("`", "\""));
     } else {
-      self = self.push_str(s);
+      self.push_str(s);
     }
 
     self
   }
 
   #[inline]
-  fn ident_comma<I, S>(self, s: I) -> Self
+  fn ident_comma<I, S>(&mut self, s: I) -> &mut Self
   where
     I: IntoIterator<Item = S>,
     S: AsRef<str>,
   {
     for (i, s) in s.into_iter().enumerate() {
       if i > 0 {
-        self = self.comma();
+        self.comma();
       }
-      self = self.ident(s);
+      self.ident(s);
     }
     self
   }
 
   #[inline]
-  fn op(self, op: Op) -> Self {
+  fn op(&mut self, op: Op) -> &mut Self {
     match op {
       Op::IsNull | Op::NotNull => self.pad().push_str(op.as_str()),
       _ => self.pad().push_str(op.as_str()).pad(),
@@ -153,11 +153,12 @@ impl BuilderExt for BaseBuilder {
   }
 
   #[inline]
-  fn arg(self, arg: impl Arg) -> Self {
-    arg.append(self)
+  fn arg(&mut self, arg: impl Arg) -> &mut Self {
+    arg.append(self);
+    self
   }
 
-  fn join(mut self, builder: impl Builder) -> Self {
+  fn join(&mut self, builder: impl Builder) -> &mut Self {
     let (query, mut args) = builder.build();
     self.args.append(&mut args);
     self.total = self.args.len();
@@ -165,31 +166,31 @@ impl BuilderExt for BaseBuilder {
   }
 
   #[inline]
-  fn nested(mut self, f: impl FnMut(Self)) -> Self {
-    self = self.push('(');
+  fn nested(&mut self, f: impl Fn(&mut Self)) -> &mut Self {
+    self.push('(');
     f(self);
     self.push(')')
   }
 
   #[inline]
-  fn push_str(mut self, s: impl AsRef<str>) -> Self {
+  fn push_str(&mut self, s: impl AsRef<str>) -> &mut Self {
     self.buf.push_str(s.as_ref());
     self
   }
 
   #[inline]
-  fn push(mut self, c: char) -> Self {
+  fn push(&mut self, c: char) -> &mut Self {
     self.buf.push(c);
     self
   }
 
   #[inline]
-  fn comma(self) -> Self {
+  fn comma(&mut self) -> &mut Self {
     self.push_str(", ")
   }
 
   #[inline]
-  fn pad(self) -> Self {
+  fn pad(&mut self) -> &mut Self {
     self.push_str(" ")
   }
 
@@ -207,7 +208,7 @@ impl BuilderExt for BaseBuilder {
   }
 
   #[inline]
-  fn set_dialect(&mut self, dialect: Dialect) -> &Self {
+  fn set_dialect(&mut self, dialect: Dialect) -> &mut Self {
     self.dialect = dialect;
     self
   }
@@ -218,14 +219,16 @@ impl BuilderExt for BaseBuilder {
   }
 
   #[inline]
-  fn set_total(&mut self, total: usize) -> &Self {
+  fn set_total(&mut self, total: usize) -> &mut Self {
     self.total = total;
     self
   }
 }
 
-trait ChildBuilder {
-  fn parent(&mut self) -> &mut BaseBuilder;
+#[doc(hidden)]
+pub trait ChildBuilder {
+  fn parent(&self) -> &BaseBuilder;
+  fn parent_mut(&mut self) -> &mut BaseBuilder;
 }
 
 impl<T> BuilderExt for T
@@ -238,66 +241,66 @@ where
   }
 
   #[inline]
-  fn ident(self, s: impl AsRef<str>) -> Self {
-    self.parent().ident(s);
+  fn ident(&mut self, s: impl AsRef<str>) -> &mut Self {
+    self.parent_mut().ident(s);
     self
   }
 
   #[inline]
-  fn ident_comma<I, S>(self, s: I) -> Self
+  fn ident_comma<I, S>(&mut self, s: I) -> &mut Self
   where
     I: IntoIterator<Item = S>,
     S: AsRef<str>,
   {
-    self.parent().ident_comma(s);
+    self.parent_mut().ident_comma(s);
     self
   }
 
   #[inline]
-  fn op(self, op: Op) -> Self {
-    self.parent().op(op);
+  fn op(&mut self, op: Op) -> &mut Self {
+    self.parent_mut().op(op);
     self
   }
 
   #[inline]
-  fn arg(self, arg: impl Arg) -> Self {
-    self.parent().arg(arg);
+  fn arg(&mut self, arg: impl Arg) -> &mut Self {
+    self.parent_mut().arg(arg);
     self
   }
 
   #[inline]
-  fn join(self, builder: impl Builder) -> Self {
-    self.parent().join(builder);
+  fn join(&mut self, builder: impl Builder) -> &mut Self {
+    self.parent_mut().join(builder);
     self
   }
 
   #[inline]
-  fn nested(self, f: impl FnMut(BaseBuilder)) -> Self {
-    self.parent().nested(f);
+  fn nested(&mut self, f: impl Fn(&mut BaseBuilder)) -> &mut Self {
+    self.parent_mut().nested(f);
     self
   }
 
   #[inline]
-  fn push_str(self, s: impl AsRef<str>) -> Self {
-    self.parent().push_str(s);
+  fn push_str(&mut self, s: impl AsRef<str>) -> &mut Self {
+    self.parent_mut().push_str(s);
     self
   }
 
   #[inline]
-  fn push(self, c: char) -> Self {
-    self.parent().push(c);
+  fn push(&mut self, c: char) -> &mut Self {
+    self.parent_mut().push(c);
     self
   }
 
   #[inline]
-  fn comma(self) -> Self {
-    self.parent().comma();
+  fn comma(&mut self) -> &mut Self {
+    self.parent_mut().comma();
     self
   }
 
   #[inline]
-  fn pad(self) -> Self {
-    self.parent().pad();
+  fn pad(&mut self) -> &mut Self {
+    self.parent_mut().pad();
     self
   }
 
@@ -312,8 +315,8 @@ where
   }
 
   #[inline]
-  fn set_dialect(&mut self, dialect: Dialect) -> &Self {
-    self.parent().set_dialect(dialect);
+  fn set_dialect(&mut self, dialect: Dialect) -> &mut Self {
+    self.parent_mut().set_dialect(dialect);
     self
   }
 
@@ -323,37 +326,38 @@ where
   }
 
   #[inline]
-  fn set_total(&mut self, total: usize) -> &Self {
-    self.parent().set_total(total);
+  fn set_total(&mut self, total: usize) -> &mut Self {
+    self.parent_mut().set_total(total);
     self
   }
 }
 
 pub trait Arg {
-  fn append(self, builder: BaseBuilder) -> BaseBuilder;
+  fn append(self, builder: &mut BaseBuilder);
 }
 
 pub struct Raw<'a>(&'a str);
 
 impl Arg for Raw<'_> {
   #[inline]
-  fn append(self, builder: BaseBuilder) -> BaseBuilder {
-    builder.push_str(self.0)
+  fn append(self, builder: &mut BaseBuilder) {
+    builder.push_str(self.0);
   }
 }
 
 impl<T: ToString> Arg for T {
-  fn append(self, mut builder: BaseBuilder) -> BaseBuilder {
+  fn append(self, builder: &mut BaseBuilder) {
     builder.total += 1;
     builder.args.push(self.to_string());
     match builder.dialect {
       Dialect::Postgres => {
         let total = builder.total.to_string();
-        builder = builder.push_str("$").push_str(&total)
+        builder.push_str("$").push_str(&total);
       }
-      _ => builder = builder.push_str("?"),
+      _ => {
+        builder.push_str("?");
+      }
     };
-    builder
   }
 }
 
