@@ -1,4 +1,5 @@
 mod alter_index;
+mod drop_index;
 mod alter_table;
 mod column;
 mod foreign;
@@ -9,6 +10,7 @@ mod reference;
 mod table;
 
 pub use alter_index::AlterIndexBuilder;
+pub use drop_index::DropIndexBuilder;
 pub use alter_table::AlterTableBuilder;
 pub use column::ColumnBuilder;
 pub use foreign::ForeignKeyBuilder;

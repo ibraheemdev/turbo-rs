@@ -1,4 +1,4 @@
-use super::{BaseBuilder, Builder, BuilderExt, ChildBuilder, ColumnBuilder, ForeignKeyBuilder};
+use super::{BaseBuilder, Builder, BuilderExt, ChildBuilder};
 
 /// A query builder for `CREATE INDEX` statements.
 #[derive(Default)]
