@@ -2,6 +2,7 @@ use super::foreign::ForeignKeyBuilder;
 use super::{BaseBuilder, Builder, BuilderExt, ChildBuilder, Dialect};
 
 /// The builder for column definitions in table creation
+#[derive(Default)]
 pub struct ColumnBuilder {
   base: BaseBuilder,
   // column type
@@ -25,20 +26,6 @@ impl ChildBuilder for ColumnBuilder {
 
   fn parent_mut(&mut self) -> &mut BaseBuilder {
     &mut self.base
-  }
-}
-
-impl Default for ColumnBuilder {
-  fn default() -> Self {
-    Self {
-      base: BaseBuilder::default(),
-      typ: String::new(),
-      name: String::new(),
-      attr: String::new(),
-      modify: false,
-      foreign: None,
-      check: None,
-    }
   }
 }
 
