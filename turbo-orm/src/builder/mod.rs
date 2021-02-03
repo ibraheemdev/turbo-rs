@@ -1,20 +1,22 @@
 mod alter_index;
-mod drop_index;
 mod alter_table;
 mod column;
+mod drop_index;
 mod foreign;
 mod index;
+mod insert;
 mod ops;
 mod raw;
 mod reference;
 mod table;
 
 pub use alter_index::AlterIndexBuilder;
-pub use drop_index::DropIndexBuilder;
 pub use alter_table::AlterTableBuilder;
 pub use column::ColumnBuilder;
+pub use drop_index::DropIndexBuilder;
 pub use foreign::ForeignKeyBuilder;
 pub use index::IndexBuilder;
+pub use insert::InsertBuilder;
 pub use ops::Op;
 pub use raw::Raw;
 pub use reference::ReferenceBuilder;
@@ -32,6 +34,8 @@ pub trait BuilderExt {
   /// Quotes the given identifier with the characters based
   /// on the configured dialect. It defaults to "`".
   fn quote(&self, ident: impl Into<String>) -> String;
+
+  fn schema(&mut self, schema: impl AsRef<str>) -> &mut Self;
 
   /// Appends the given string as an identifier.
   fn ident(&mut self, s: impl AsRef<str>) -> &mut Self;
@@ -151,6 +155,14 @@ impl BuilderExt for BaseBuilder {
       }
       _ => format!("`{}`", ident),
     }
+  }
+
+  fn schema(&mut self, schema: impl AsRef<str>) -> &mut Self {
+    let schema = schema.as_ref();
+    if !schema.is_empty() && self.dialect != Dialect::SQLite {
+      self.ident(schema).push('.');
+    }
+    self
   }
 
   fn ident(&mut self, s: impl AsRef<str>) -> &mut Self {
@@ -301,6 +313,12 @@ where
   #[inline]
   fn quote(&self, ident: impl Into<String>) -> String {
     self.parent().quote(ident)
+  }
+
+  #[inline]
+  fn schema(&mut self, schema: impl AsRef<str>) -> &mut Self {
+    self.parent_mut().schema(schema);
+    self
   }
 
   #[inline]

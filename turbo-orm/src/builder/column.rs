@@ -1,5 +1,4 @@
-use super::foreign::ForeignKeyBuilder;
-use super::{BaseBuilder, Builder, BuilderExt, ChildBuilder, Dialect};
+use super::{BaseBuilder, Builder, BuilderExt, ChildBuilder, Dialect, ForeignKeyBuilder};
 
 /// The builder for column definitions in table creation
 #[derive(Default)]
@@ -34,7 +33,6 @@ impl ColumnBuilder {
   pub fn new(name: impl Into<String>) -> Self {
     Self {
       name: name.into(),
-      check: None,
       ..Self::default()
     }
   }
