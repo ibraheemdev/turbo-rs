@@ -76,6 +76,6 @@ impl Builder for ForeignKeyBuilder {
     for action in self.actions {
       base.pad().push_str(action);
     }
-    (base.buf, base.args)
+    base.build()
   }
 }

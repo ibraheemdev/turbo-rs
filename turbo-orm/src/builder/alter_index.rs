@@ -45,6 +45,6 @@ impl Builder for AlterIndexBuilder {
     base.ident(self.name);
     base.pad();
     base.join_many(self.alterations.iter().map(Raw::new));
-    (base.buf, base.args)
+    base.build()
   }
 }

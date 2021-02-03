@@ -123,6 +123,13 @@ impl Default for Dialect {
   }
 }
 
+impl Builder for BaseBuilder {
+  #[inline]
+  fn build(self) -> (String, Vec<String>) {
+    (self.buf, self.args)
+  }
+}
+
 impl BaseBuilder {
   fn join_helper<I, B>(&mut self, builders: I, seperator: impl AsRef<str>) -> &mut Self
   where

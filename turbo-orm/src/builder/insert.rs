@@ -96,6 +96,6 @@ impl Builder for InsertBuilder {
       base.push_str(" RETURNING ");
       base.ident_comma(self.returning);
     }
-    (base.buf, base.args)
+    base.build()
   }
 }

@@ -46,6 +46,6 @@ impl Builder for ReferenceBuilder {
     base.nested(|b| {
       b.ident_comma(columns);
     });
-    (base.buf, base.args)
+    base.build()
   }
 }

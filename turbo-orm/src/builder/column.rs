@@ -96,6 +96,6 @@ impl Builder for ColumnBuilder {
       base.push_str(" CHECK ");
       base.nested(check);
     }
-    (base.buf, base.args)
+    base.build()
   }
 }

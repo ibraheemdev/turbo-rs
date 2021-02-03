@@ -43,6 +43,6 @@ impl Builder for DropIndexBuilder {
       base.push_str(" ON ");
       base.ident(self.table);
     }
-    (base.buf, base.args)
+    base.build()
   }
 }

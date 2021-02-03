@@ -1,5 +1,6 @@
 use super::{
-  BaseBuilder, Builder, BuilderExt, ChildBuilder, ColumnBuilder, Dialect, ForeignKeyBuilder, Raw,
+  BaseBuilder, Builder, BuilderExt, ChildBuilder, ColumnBuilder, Dialect, ForeignKeyBuilder,
+  IndexBuilder, Raw,
 };
 
 /// A query builder for `ALTER TABLE` statement.
@@ -86,8 +87,24 @@ impl AlterTableBuilder {
     self
   }
 
-  // TODO: Appends the `ADD INDEX` clause to the given `ALTER TABLE` statement.
-  // pub fn add_index(&mut self, index: IndexBuilder) -> &mut Self {}
+  /// Appends the `ADD INDEX` clause to the given `ALTER TABLE` statement.
+  pub fn add_index(&mut self, index: IndexBuilder) -> &mut Self {
+    let mut b = BaseBuilder::default();
+    b.set_dialect(self.base.dialect.clone());
+    b.push_str("ADD ");
+    if index.unique {
+      b.push_str("UNIQUE ");
+    }
+    b.push_str("INDEX ");
+    b.ident(index.name);
+    let columns = index.columns;
+    b.nested(|b| {
+      b.ident_comma(columns);
+    });
+    let (query, _) = b.build();
+    self.alterations.push(query);
+    self
+  }
 
   /// Adds a foreign key constraint to the given `ALTER TABLE` statement.
   pub fn add_foreign_key(&mut self, mut fk: ForeignKeyBuilder) -> &mut Self {
@@ -119,6 +136,6 @@ impl Builder for AlterTableBuilder {
     base.push_str(self.name);
     base.pad();
     base.join_many(self.alterations.iter().map(Raw::new));
-    (base.buf, base.args)
+    base.build()
   }
 }

@@ -127,6 +127,6 @@ impl Builder for TableBuilder {
     if !self.options.is_empty() {
       base.push_str(" ").push_str(self.options);
     }
-    (base.buf, base.args)
+    base.build()
   }
 }

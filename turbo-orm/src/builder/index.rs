@@ -4,10 +4,10 @@ use super::{BaseBuilder, Builder, BuilderExt, ChildBuilder};
 #[derive(Default)]
 pub struct IndexBuilder {
   base: BaseBuilder,
-  name: String,
-  table: String,
-  unique: bool,
-  columns: Vec<String>,
+  pub(crate) name: String,
+  pub(crate) table: String,
+  pub(crate) unique: bool,
+  pub(crate) columns: Vec<String>,
 }
 
 impl ChildBuilder for IndexBuilder {
@@ -62,6 +62,6 @@ impl Builder for IndexBuilder {
     base.ident(self.table).nested(|b| {
       b.ident_comma(columns);
     });
-    (base.buf, base.args)
+    base.build()
   }
 }
