@@ -70,16 +70,9 @@ impl TableBuilder {
   }
 
   /// Adds a foreign-key constraint to the statement.
-  pub fn constraint(&mut self, constraint: ForeignKeyBuilder) -> &mut Self {
-    let mut buf = "CONSTRAINT ".to_owned();
-    buf.push_str(&constraint.base.buf);
-    self.constraints.push(ForeignKeyBuilder {
-      base: BaseBuilder {
-        buf,
-        ..constraint.base
-      },
-      ..constraint
-    });
+  pub fn constraint(&mut self, mut constraint: ForeignKeyBuilder) -> &mut Self {
+    constraint.prefix("CONSTRAINT ");
+    self.constraints.push(constraint);
     self
   }
 

@@ -45,18 +45,18 @@ impl ForeignKeyBuilder {
   }
 
   /// Sets the on delete action for this constraint.
-  pub fn on_delete(&mut self, action: impl AsRef<str>) -> &mut Self {
-    let mut constraint = "ON DELETE ".to_owned();
-    constraint.push_str(action.as_ref());
-    self.actions.push(constraint);
+  pub fn on_delete(&mut self, action: impl Into<String>) -> &mut Self {
+    let mut action = action.into();
+    action.insert_str(0, "ON DELETE ");
+    self.actions.push(action);
     self
   }
 
   /// Sets the on update action for this constraint.
-  pub fn on_update(&mut self, action: impl AsRef<str>) -> &mut Self {
-    let mut constraint = "ON UPDATE ".to_owned();
-    constraint.push_str(action.as_ref());
-    self.actions.push(constraint);
+  pub fn on_update(&mut self, action: impl Into<String>) -> &mut Self {
+    let mut action = action.into();
+    action.insert_str(0, "ON UPDATE ");
+    self.actions.push(action);
     self
   }
 }

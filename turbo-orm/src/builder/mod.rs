@@ -1,12 +1,16 @@
+mod alter;
 mod column;
 mod foreign;
 mod ops;
+mod raw;
 mod reference;
 mod table;
 
+pub use alter::TableAlterBuilder;
 pub use column::ColumnBuilder;
 pub use foreign::ForeignKeyBuilder;
 pub use ops::Op;
+pub use raw::Raw;
 pub use reference::ReferenceBuilder;
 pub use table::TableBuilder;
 
@@ -36,7 +40,7 @@ pub trait BuilderExt {
   fn op(&mut self, op: Op) -> &mut Self;
 
   /// Append an input argument to the builder.
-  fn arg(&mut self, arg: impl Arg) -> &mut Self;
+  fn arg(&mut self, arg: impl ToString) -> &mut Self;
 
   /// Join this builder with an existing builder.
   fn join(&mut self, builder: impl Builder) -> &mut Self;
@@ -55,6 +59,9 @@ pub trait BuilderExt {
 
   /// Push a raw char to the builder.
   fn push(&mut self, c: char) -> &mut Self;
+
+  /// Prefix the builder query with a raw string.
+  fn prefix(&mut self, s: impl AsRef<str>) -> &mut Self;
 
   /// Add a comma to the query.
   fn comma(&mut self) -> &mut Self;
@@ -180,8 +187,18 @@ impl BuilderExt for BaseBuilder {
   }
 
   #[inline]
-  fn arg(&mut self, arg: impl Arg) -> &mut Self {
-    arg.append(self);
+  fn arg(&mut self, arg: impl ToString) -> &mut Self {
+    self.total += 1;
+    self.args.push(arg.to_string());
+    match self.dialect {
+      Dialect::Postgres => {
+        let total = self.total.to_string();
+        self.push_str("$").push_str(&total);
+      }
+      _ => {
+        self.push_str("?");
+      }
+    };
     self
   }
 
@@ -215,6 +232,12 @@ impl BuilderExt for BaseBuilder {
   #[inline]
   fn push(&mut self, c: char) -> &mut Self {
     self.buf.push(c);
+    self
+  }
+
+  #[inline]
+  fn prefix(&mut self, s: impl AsRef<str>) -> &mut Self {
+    self.buf.insert_str(0, s.as_ref());
     self
   }
 
@@ -297,7 +320,7 @@ where
   }
 
   #[inline]
-  fn arg(&mut self, arg: impl Arg) -> &mut Self {
+  fn arg(&mut self, arg: impl ToString) -> &mut Self {
     self.parent_mut().arg(arg);
     self
   }
@@ -333,6 +356,12 @@ where
   #[inline]
   fn push(&mut self, c: char) -> &mut Self {
     self.parent_mut().push(c);
+    self
+  }
+
+  #[inline]
+  fn prefix(&mut self, s: impl AsRef<str>) -> &mut Self {
+    self.parent_mut().prefix(s);
     self
   }
 
@@ -373,35 +402,6 @@ where
   fn set_total(&mut self, total: usize) -> &mut Self {
     self.parent_mut().set_total(total);
     self
-  }
-}
-
-pub trait Arg {
-  fn append(self, builder: &mut BaseBuilder);
-}
-
-pub struct Raw<'a>(&'a str);
-
-impl Arg for Raw<'_> {
-  #[inline]
-  fn append(self, builder: &mut BaseBuilder) {
-    builder.push_str(self.0);
-  }
-}
-
-impl<T: ToString> Arg for T {
-  fn append(self, builder: &mut BaseBuilder) {
-    builder.total += 1;
-    builder.args.push(self.to_string());
-    match builder.dialect {
-      Dialect::Postgres => {
-        let total = builder.total.to_string();
-        builder.push_str("$").push_str(&total);
-      }
-      _ => {
-        builder.push_str("?");
-      }
-    };
   }
 }
 
