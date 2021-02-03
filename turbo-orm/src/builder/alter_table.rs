@@ -4,7 +4,7 @@ use super::{
 
 /// A query builder for `ALTER TABLE` statement.
 #[derive(Default)]
-pub struct TableAlterBuilder {
+pub struct AlterTableBuilder {
   base: BaseBuilder,
   // table to alter
   name: String,
@@ -12,7 +12,7 @@ pub struct TableAlterBuilder {
   alterations: Vec<String>,
 }
 
-impl ChildBuilder for TableAlterBuilder {
+impl ChildBuilder for AlterTableBuilder {
   fn parent(&self) -> &BaseBuilder {
     &self.base
   }
@@ -22,7 +22,7 @@ impl ChildBuilder for TableAlterBuilder {
   }
 }
 
-impl TableAlterBuilder {
+impl AlterTableBuilder {
   /// Creates a query builder for the `ALTER TABLE` statement.
   pub fn new(name: impl Into<String>) -> Self {
     Self {
@@ -113,7 +113,7 @@ impl TableAlterBuilder {
   }
 }
 
-impl Builder for TableAlterBuilder {
+impl Builder for AlterTableBuilder {
   fn build(self) -> (String, Vec<String>) {
     let mut base = self.base;
     base.push_str(self.name);
